@@ -1,13 +1,13 @@
 {
-  "name": "TypeRush",
-  "short_name": "TypeRush",
-  "description": "Cinematic typing speed trainer with adaptive calibration",
+  "name": "TypeRush Pro",
+  "short_name": "TypeRush Pro",
+  "description": "Offline-first cinematic typing trainer with analytical diagnostics",
   "start_url": "index.html",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#080810",
   "theme_color": "#080810",
-  "id": "typerush-app-v3",
+  "id": "typerush-pro",
   "lang": "en-US",
   "scope": "/",
   "icons": [

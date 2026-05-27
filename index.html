@@ -4,17 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#080810">
-  <meta name="description" content="TypeRush — Cinematic typing speed training">
+  <meta name="description" content="TypeRush Pro - offline-first cinematic typing speed training">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="TypeRush">
+  <meta name="apple-mobile-web-app-title" content="TypeRush Pro">
   <link rel="manifest" href="manifest.json">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="style.css">
-  <title>TypeRush — Calibrated Speed</title>
+  <title>TypeRush Pro - Calibrated Speed</title>
 </head>
 <body>
 
@@ -125,6 +121,56 @@
     </div>
   </div>
 
+  <!-- Pro Observatory Panel -->
+  <div class="side-panel pro-panel" id="proPanel" role="complementary" aria-label="TypeRush Pro Observatory">
+    <div class="panel-header">
+      <span class="panel-title">Pro Observatory</span>
+      <button class="panel-close" id="proClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="pro-tabs" role="tablist" aria-label="Pro modules">
+      <button class="pro-tab active" data-pro-tab="heatmap" type="button">Heatmap</button>
+      <button class="pro-tab" data-pro-tab="vault" type="button">Vault</button>
+      <button class="pro-tab" data-pro-tab="focus" type="button">Focus-Lock</button>
+    </div>
+    <div class="panel-body pro-panel-body">
+      <section class="pro-tab-panel active" data-pro-panel="heatmap">
+        <div class="panel-card">
+          <div class="panel-card-head">
+            <span>N-Gram Latency Diagnostics</span>
+            <button class="btn btn-ghost btn-sm" id="heatmapRefresh" type="button">Refresh</button>
+          </div>
+          <p class="pro-copy" id="heatmapSummary">No transition samples yet. Complete a run to populate the biomechanical matrix.</p>
+          <div class="keyboard-heatmap" id="heatmapKeyboard" aria-label="Latency keyboard heatmap"></div>
+        </div>
+      </section>
+      <section class="pro-tab-panel" data-pro-panel="vault">
+        <div class="panel-card">
+          <div class="panel-card-head"><span>Analytical Vault</span></div>
+          <p class="pro-copy">Session summaries and keystroke telemetry are stored locally in IndexedDB and exported client-side.</p>
+          <input class="bank-title-input" id="vaultPassphrase" type="password" placeholder="Optional encryption passphrase" autocomplete="off" spellcheck="false">
+          <div class="vault-actions">
+            <button class="btn btn-primary btn-sm" id="vaultExportJson" type="button">Export JSON</button>
+            <button class="btn btn-ghost btn-sm" id="vaultExportCsv" type="button">Export CSV</button>
+          </div>
+          <p class="pro-copy mono" id="vaultStatus">Vault idle.</p>
+        </div>
+      </section>
+      <section class="pro-tab-panel" data-pro-panel="focus">
+        <div class="panel-card">
+          <div class="panel-card-head"><span>Focus-Lock Draft Utility</span></div>
+          <textarea class="bank-textarea focus-draft" id="focusDraft" rows="9" placeholder="Paste a draft or outline to lock inside the trainer." autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+          <label class="range-label" for="focusFloor">Accuracy floor <span id="focusFloorValue">95%</span></label>
+          <input class="pro-range" id="focusFloor" type="range" min="80" max="100" step="1" value="95">
+          <div class="vault-actions">
+            <button class="btn btn-primary btn-sm" id="focusEngage" type="button">Engage Focus-Lock</button>
+            <button class="btn btn-ghost btn-sm" id="focusRelease" type="button" disabled>Release Draft</button>
+          </div>
+          <p class="pro-copy mono" id="focusStatus">Unlocked.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
   <!-- Panel Backdrop -->
   <div class="panel-backdrop" id="panelBackdrop"></div>
 
@@ -136,7 +182,7 @@
       <div class="topbar-brand">
         <span class="brand-mark"></span>
         <span class="brand-name">TypeRush</span>
-        <span class="brand-version">v3</span>
+        <span class="brand-version">Pro</span>
       </div>
 
       <div class="topbar-actions">
@@ -157,6 +203,9 @@
         </button>
         <button class="topbar-btn" id="bankBtn" title="Text Bank">
           <i class="fa-solid fa-database"></i>
+        </button>
+        <button class="topbar-btn" id="proBtn" title="Pro Observatory">
+          <i class="fa-solid fa-chart-line"></i>
         </button>
         <button class="topbar-btn sound-toggle" id="soundToggle" title="Sound">
           <i class="fa-solid fa-volume-xmark" id="soundIcon"></i>
@@ -191,6 +240,8 @@
         <button class="pill" data-category="general">General</button>
         <button class="pill" data-category="quotes">Quotes</button>
         <button class="pill" data-category="tech">Tech</button>
+        <button class="pill" data-category="fluidity">Fluidity Drill</button>
+        <button class="pill" data-category="code">Code-Forge</button>
         <button class="pill" data-category="bank" id="bankCategoryBtn">Bank</button>
       </div>
 
@@ -208,6 +259,36 @@
         <button class="pill font-pill" data-size="small" title="Small">A</button>
         <button class="pill font-pill active" data-size="medium" title="Medium">A</button>
         <button class="pill font-pill" data-size="large" title="Large">A</button>
+      </div>
+    </div>
+
+    <!-- Pro Control Matrix -->
+    <div class="pro-control-strip" id="proControlStrip">
+      <div class="pro-control">
+        <span class="sub-label">Audio Deck</span>
+        <div class="segmented" id="audioDeck">
+          <button class="seg active" data-audio-profile="modelM" type="button">Model M</button>
+          <button class="seg" data-audio-profile="linear" type="button">Linear</button>
+          <button class="seg" data-audio-profile="retro" type="button">Retro</button>
+          <button class="seg" data-audio-profile="holo" type="button">Holo</button>
+        </div>
+      </div>
+      <div class="pro-control pro-control-ambient">
+        <button class="btn btn-ghost btn-sm" id="ambientToggle" type="button">Ambient Flow</button>
+        <input class="pro-range" id="ambientVolume" type="range" min="0" max="100" value="28" aria-label="Ambient volume">
+      </div>
+      <div class="pro-control pro-control-modes">
+        <button class="btn btn-ghost btn-sm" id="zenToggle" type="button">Zen Scribe</button>
+        <button class="btn btn-ghost btn-sm" id="blindToggle" type="button">Blind-Type</button>
+        <button class="btn btn-ghost btn-sm active" id="ghostToggle" type="button">Ghost</button>
+      </div>
+      <div class="pro-control pro-code-select">
+        <span class="sub-label">Code</span>
+        <select class="pro-select" id="codeLanguage" aria-label="Code language">
+          <option value="javascript">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="rust">Rust</option>
+        </select>
       </div>
     </div>
 
@@ -254,6 +335,7 @@
             aria-label="Type the words shown above">
         </div>
         <div class="caret" id="caret" aria-hidden="true"></div>
+        <div class="ghost-marker" id="ghostMarker" aria-hidden="true"></div>
       </div>
     </main>
 
@@ -310,12 +392,6 @@
       </div>
       <div class="credits">
         <span>Made by <strong>WHYZEE</strong></span>
-        <a href="https://www.instagram.com/yaszaher_" target="_blank" rel="noopener" aria-label="Instagram" class="cred-link">
-          <i class="fa-brands fa-instagram"></i>
-        </a>
-        <a href="https://x.com/itsWHYZEE" target="_blank" rel="noopener" aria-label="X" class="cred-link">
-          <i class="fa-brands fa-x-twitter"></i>
-        </a>
       </div>
     </footer>
 

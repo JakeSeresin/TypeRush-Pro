@@ -60,7 +60,27 @@ const WORD_BANK = {
     "the more you read the more you learn the more places you will go in your mind",
     "creativity is intelligence having fun with the tools and ideas at its disposal",
     "not all those who wander are lost some are just exploring new possibilities",
-  ]
+  ],
+  code: {
+    javascript: [
+      "const queue = tasks.map(task => task.id);",
+      "async function hydrateStore() { const data = await vault.readAll(); return data.filter(Boolean); }",
+      "for (const [key, value] of Object.entries(matrix)) { console.log(key, value.avg); }",
+      "export function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }",
+    ],
+    python: [
+      "def normalize(scores):\n    total = sum(scores)\n    return [score / total for score in scores]",
+      "class Vault:\n    def __init__(self, path):\n        self.path = path\n        self.rows = []",
+      "for key, value in matrix.items():\n    if value > threshold:\n        print(key, value)",
+      "async def collect_events(stream):\n    async for event in stream:\n        yield event.payload",
+    ],
+    rust: [
+      "fn clamp(value: f32, min: f32, max: f32) -> f32 { value.max(min).min(max) }",
+      "let pairs: Vec<_> = samples.iter().filter(|row| row.latency_ms > 120.0).collect();",
+      "match result { Ok(value) => println!(\"{}\", value), Err(err) => eprintln!(\"{}\", err), }",
+      "pub struct Session { pub wpm: u32, pub accuracy: f32, pub errors: u32 }",
+    ],
+  }
 };
 
 // ─────────────────────────────────────────────
@@ -89,6 +109,30 @@ const STATE = {
   sparklineData: [],
   // Settings
   soundEnabled: false,
+  proMode: true,
+  audioProfile: 'modelM',
+  ambientEnabled: false,
+  ambientVolume: 0.28,
+  zenMode: false,
+  blindMode: false,
+  codeLanguage: 'javascript',
+  latencyLogs: [],
+  latencyMatrix: {},
+  lastKey: null,
+  lastKeyTime: 0,
+  activeRunId: null,
+  activeRunTelemetry: [],
+  focusLock: {
+    active: false,
+    source: '',
+    accuracyFloor: 95,
+    unlocked: true,
+  },
+  ghost: {
+    enabled: true,
+    targetWpm: 0,
+    startedAt: 0,
+  },
   // Calibration Engine
   calibration: {
     wordErrorMap: {},       // word → {errors, attempts, avgTime}
@@ -185,11 +229,38 @@ const D = {
   bankTextarea: document.getElementById('bankTextarea'),
   bankSave: document.getElementById('bankSave'),
   bankList: document.getElementById('bankList'),
+  // Pro Observatory
+  proBtn: document.getElementById('proBtn'),
+  proPanel: document.getElementById('proPanel'),
+  proClose: document.getElementById('proClose'),
+  proTabs: document.querySelectorAll('[data-pro-tab]'),
+  proTabPanels: document.querySelectorAll('[data-pro-panel]'),
+  audioDeck: document.getElementById('audioDeck'),
+  ambientToggle: document.getElementById('ambientToggle'),
+  ambientVolume: document.getElementById('ambientVolume'),
+  zenToggle: document.getElementById('zenToggle'),
+  blindToggle: document.getElementById('blindToggle'),
+  ghostToggle: document.getElementById('ghostToggle'),
+  codeLanguage: document.getElementById('codeLanguage'),
+  heatmapRefresh: document.getElementById('heatmapRefresh'),
+  heatmapKeyboard: document.getElementById('heatmapKeyboard'),
+  heatmapSummary: document.getElementById('heatmapSummary'),
+  vaultExportJson: document.getElementById('vaultExportJson'),
+  vaultExportCsv: document.getElementById('vaultExportCsv'),
+  vaultPassphrase: document.getElementById('vaultPassphrase'),
+  vaultStatus: document.getElementById('vaultStatus'),
+  focusDraft: document.getElementById('focusDraft'),
+  focusFloor: document.getElementById('focusFloor'),
+  focusFloorValue: document.getElementById('focusFloorValue'),
+  focusEngage: document.getElementById('focusEngage'),
+  focusRelease: document.getElementById('focusRelease'),
+  focusStatus: document.getElementById('focusStatus'),
   // Other
   panelBackdrop: document.getElementById('panelBackdrop'),
   soundToggle: document.getElementById('soundToggle'),
   soundIcon: document.getElementById('soundIcon'),
   themeToggle: document.getElementById('themeToggle'),
+  ghostMarker: document.getElementById('ghostMarker'),
   confettiCanvas: document.getElementById('confettiCanvas'),
 };
 
@@ -203,6 +274,8 @@ const Store = {
     calibration: 'tr3_calibration',
     streak:      'tr3_streak',
     bank:        'tr3_bank',
+    pro:         'trpro_settings',
+    latency:     'trpro_latency',
   },
   get(key, def = null) {
     try { const v = localStorage.getItem(key); return v !== null ? JSON.parse(v) : def; }
@@ -219,6 +292,17 @@ const Store = {
     STATE.wordCount = settings.wordCount || 25;
     STATE.category = settings.category || 'mixed';
     STATE.fontSizeLevel = settings.fontSizeLevel || 'medium';
+
+    const pro = this.get(this.keys.pro, {});
+    STATE.audioProfile = pro.audioProfile || 'modelM';
+    STATE.ambientEnabled = !!pro.ambientEnabled;
+    STATE.ambientVolume = Number.isFinite(pro.ambientVolume) ? pro.ambientVolume : 0.28;
+    STATE.zenMode = !!pro.zenMode;
+    STATE.blindMode = !!pro.blindMode;
+    STATE.ghost.enabled = pro.ghostEnabled !== undefined ? !!pro.ghostEnabled : true;
+    STATE.codeLanguage = pro.codeLanguage || 'javascript';
+    STATE.focusLock.accuracyFloor = pro.focusAccuracyFloor || 95;
+    STATE.latencyMatrix = this.get(this.keys.latency, {});
 
     const stats = this.get(this.keys.stats, {});
     STATE.bestWPM = stats.bestWPM || 0;
@@ -243,6 +327,21 @@ const Store = {
       fontSizeLevel: STATE.fontSizeLevel,
     });
   },
+  savePro() {
+    this.set(this.keys.pro, {
+      audioProfile: STATE.audioProfile,
+      ambientEnabled: STATE.ambientEnabled,
+      ambientVolume: STATE.ambientVolume,
+      zenMode: STATE.zenMode,
+      blindMode: STATE.blindMode,
+      ghostEnabled: STATE.ghost.enabled,
+      codeLanguage: STATE.codeLanguage,
+      focusAccuracyFloor: STATE.focusLock.accuracyFloor,
+    });
+  },
+  saveLatency() {
+    this.set(this.keys.latency, STATE.latencyMatrix);
+  },
   saveStats() {
     this.set(this.keys.stats, {
       bestWPM: STATE.bestWPM,
@@ -260,6 +359,14 @@ const Store = {
   },
   saveBank() {
     this.set(this.keys.bank, STATE.textBank);
+  },
+  saveAll() {
+    this.saveSettings();
+    this.saveStats();
+    this.saveCalibration();
+    this.saveBank();
+    this.savePro();
+    this.saveLatency();
   },
   // Streak: { 'YYYY-MM-DD': count }
   getStreak() { return this.get(this.keys.streak, {}); },
@@ -281,41 +388,45 @@ const Sound = {
     if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
     return this._ctx;
   },
+  burst({ freq = 800, end = 500, type = 'sine', gain = 0.04, dur = 0.05, delay = 0, filter = 9000 }) {
+    const ctx = this.ctx();
+    const osc = ctx.createOscillator();
+    const amp = ctx.createGain();
+    const biquad = ctx.createBiquadFilter();
+    const t = ctx.currentTime + delay;
+    osc.type = type;
+    biquad.type = 'lowpass';
+    biquad.frequency.setValueAtTime(filter, t);
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(24, end), t + dur);
+    amp.gain.setValueAtTime(gain, t);
+    amp.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(biquad); biquad.connect(amp); amp.connect(ctx.destination);
+    osc.start(t); osc.stop(t + dur + 0.01);
+  },
   play(type) {
     if (!STATE.soundEnabled) return;
     try {
-      const ctx = this.ctx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      const t = ctx.currentTime;
-      switch (type) {
-        case 'key':
-          osc.frequency.setValueAtTime(900, t);
-          osc.frequency.exponentialRampToValueAtTime(650, t + 0.03);
-          gain.gain.setValueAtTime(0.04, t);
-          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-          osc.start(t); osc.stop(t + 0.05); break;
-        case 'error':
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(180, t);
-          gain.gain.setValueAtTime(0.06, t);
-          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
-          osc.start(t); osc.stop(t + 0.09); break;
-        case 'word':
-          osc.frequency.setValueAtTime(1100, t);
-          gain.gain.setValueAtTime(0.05, t);
-          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
-          osc.start(t); osc.stop(t + 0.06); break;
-        case 'finish':
-          [523, 659, 784, 1047].forEach((f, i) => {
-            const o2 = ctx.createOscillator(), g2 = ctx.createGain();
-            o2.connect(g2); g2.connect(ctx.destination);
-            o2.frequency.setValueAtTime(f, t + i * 0.12);
-            g2.gain.setValueAtTime(0.07, t + i * 0.12);
-            g2.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.18);
-            o2.start(t + i * 0.12); o2.stop(t + i * 0.12 + 0.18);
-          }); break;
+      if (type === 'finish') {
+        [523, 659, 784, 1047].forEach((f, i) => this.burst({ freq: f, end: f * 0.94, gain: 0.06, dur: 0.18, delay: i * 0.11 }));
+        return;
+      }
+      if (type === 'error') {
+        this.burst({ freq: 180, end: 92, type: 'sawtooth', gain: 0.065, dur: 0.11, filter: 1200 });
+        return;
+      }
+      const deck = STATE.audioProfile;
+      if (deck === 'modelM') {
+        this.burst({ freq: type === 'word' ? 980 : 720, end: 190, type: 'square', gain: 0.045, dur: 0.045, filter: 2600 });
+        this.burst({ freq: 4200, end: 1600, type: 'triangle', gain: 0.012, dur: 0.025 });
+      } else if (deck === 'linear') {
+        this.burst({ freq: type === 'word' ? 520 : 380, end: 240, type: 'sine', gain: 0.04, dur: 0.07, filter: 1700 });
+      } else if (deck === 'retro') {
+        const heavy = type === 'word' ? 0.06 : 0.045;
+        this.burst({ freq: 260, end: 90, type: 'sawtooth', gain: heavy, dur: 0.08, filter: 1900 });
+        if (type === 'word') this.burst({ freq: 1400, end: 700, type: 'square', gain: 0.025, dur: 0.12, delay: 0.035, filter: 2400 });
+      } else if (deck === 'holo') {
+        this.burst({ freq: type === 'word' ? 1760 : 1320, end: type === 'word' ? 1180 : 980, type: 'triangle', gain: 0.028, dur: 0.035, filter: 7000 });
       }
     } catch {}
   }
@@ -324,6 +435,371 @@ const Sound = {
 // ─────────────────────────────────────────────
 // 6. CALIBRATION ENGINE
 // ─────────────────────────────────────────────
+const TypeRushVault = {
+  name: 'TypeRushVault',
+  version: 1,
+  _db: null,
+  open() {
+    if (this._db) return Promise.resolve(this._db);
+    if (!('indexedDB' in window)) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const req = indexedDB.open(this.name, this.version);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('session_summaries')) {
+          const s = db.createObjectStore('session_summaries', { keyPath: 'id' });
+          s.createIndex('date', 'timestamp');
+        }
+        if (!db.objectStoreNames.contains('keystroke_telemetry')) {
+          const k = db.createObjectStore('keystroke_telemetry', { keyPath: 'id', autoIncrement: true });
+          k.createIndex('runId', 'runId');
+          k.createIndex('pair', 'pair');
+        }
+      };
+      req.onsuccess = () => { this._db = req.result; resolve(this._db); };
+      req.onerror = () => resolve(null);
+    });
+  },
+  async add(storeName, value) {
+    const db = await this.open();
+    if (!db) return;
+    return new Promise(resolve => {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).add(value);
+      tx.oncomplete = resolve;
+      tx.onerror = resolve;
+    });
+  },
+  async bulkAdd(storeName, rows) {
+    const db = await this.open();
+    if (!db || !rows.length) return;
+    return new Promise(resolve => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      rows.forEach(row => store.add(row));
+      tx.oncomplete = resolve;
+      tx.onerror = resolve;
+    });
+  },
+  async getAll(storeName) {
+    const db = await this.open();
+    if (!db) return [];
+    return new Promise(resolve => {
+      const req = db.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  },
+  async exportJson() {
+    return {
+      exportedAt: new Date().toISOString(),
+      session_summaries: await this.getAll('session_summaries'),
+      keystroke_telemetry: await this.getAll('keystroke_telemetry'),
+      latency_matrix: STATE.latencyMatrix,
+    };
+  },
+  toCsv(rows) {
+    if (!rows.length) return '';
+    const keys = Array.from(rows.reduce((set, row) => {
+      Object.keys(row).forEach(k => set.add(k));
+      return set;
+    }, new Set()));
+    const esc = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    return [keys.join(','), ...rows.map(row => keys.map(k => esc(row[k])).join(','))].join('\n');
+  },
+  async encryptText(text, passphrase) {
+    if (!passphrase || !crypto?.subtle) return null;
+    const enc = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const baseKey = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
+      baseKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt']
+    );
+    const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(text)));
+    const b64 = bytes => {
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        binary += String.fromCharCode(...bytes.slice(i, i + 0x8000));
+      }
+      return btoa(binary);
+    };
+    return JSON.stringify({
+      type: 'typerush-vault-aes-gcm',
+      kdf: 'PBKDF2-SHA256',
+      iterations: 120000,
+      salt: b64(salt),
+      iv: b64(iv),
+      data: b64(cipher),
+    }, null, 2);
+  },
+  download(filename, mime, content) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
+  },
+};
+
+const Latency = {
+  normalizeKey(key) {
+    if (key === ' ') return 'Space';
+    if (key === 'Enter') return 'Enter';
+    if (key.length === 1) return key.toLowerCase();
+    return null;
+  },
+  recordKey(rawKey) {
+    if (STATE.status !== 'running') return;
+    const key = this.normalizeKey(rawKey);
+    if (!key) return;
+    const now = performance.now();
+    const previous = STATE.lastKey;
+    const previousTime = STATE.lastKeyTime;
+    STATE.lastKey = key;
+    STATE.lastKeyTime = now;
+    if (!previous || !previousTime) return;
+    const delta = Math.min(2000, Math.max(0, now - previousTime));
+    const pair = `${previous}>${key}`;
+    const row = STATE.latencyMatrix[pair] || { pair, from: previous, to: key, count: 0, total: 0, avg: 0, errors: 0 };
+    row.count += 1;
+    row.total += delta;
+    row.avg = Math.round(row.total / row.count);
+    STATE.latencyMatrix[pair] = row;
+    const target = STATE.targetWords[STATE.currentWordIndex] || '';
+    const pos = STATE.currentInput.length;
+    const expected = target[pos] || (rawKey === ' ' ? 'Space' : '');
+    const error = expected && key !== this.normalizeKey(expected);
+    if (error) row.errors += 1;
+    STATE.activeRunTelemetry.push({
+      runId: STATE.activeRunId,
+      timestamp: Date.now(),
+      pair,
+      from: previous,
+      to: key,
+      latencyMs: Math.round(delta),
+      wordIndex: STATE.currentWordIndex,
+      charIndex: pos,
+      expected: expected || '',
+      error: !!error,
+    });
+    if (STATE.activeRunTelemetry.length > 5000) STATE.activeRunTelemetry.shift();
+    if (STATE.activeRunTelemetry.length % 20 === 0) Store.saveLatency();
+  },
+  slowest(limit = 5) {
+    return Object.values(STATE.latencyMatrix)
+      .filter(row => row.count >= 2 && row.to !== 'Space' && row.from !== 'Space')
+      .map(row => ({ ...row, score: row.avg + row.errors * 35 }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  },
+};
+
+const Fluidity = {
+  syllables: ['ar', 'en', 'il', 'or', 'um', 'ra', 'sto', 'lin', 'ven', 'qua', 'mar', 'sol'],
+  generateDrill(count = 80) {
+    const slow = Latency.slowest(5);
+    const targets = slow.length ? slow.map(row => `${row.from}${row.to}`.replace(/[^a-z]/g, '')) : ['tr', 'st', 'ou', 'gh', 'pr'];
+    const words = [];
+    for (let i = 0; i < count; i++) {
+      const pair = targets[i % targets.length] || 'tr';
+      const left = this.syllables[(i * 3) % this.syllables.length];
+      const right = this.syllables[(i * 5 + 2) % this.syllables.length];
+      const word = (i % 3 === 0) ? `${pair}${right}` : (i % 3 === 1) ? `${left}${pair}` : `${left}${pair}${right}`;
+      words.push(word.slice(0, 12));
+    }
+    return words;
+  },
+};
+
+const CodeForge = {
+  tokenize(text) {
+    return text.replace(/\n/g, ' ↵ ').replace(/\t/g, ' ⇥ ').replace(/ {2}/g, ' ·· ').split(/\s+/).filter(Boolean);
+  },
+  words(count = 80) {
+    const templates = WORD_BANK.code[STATE.codeLanguage] || WORD_BANK.code.javascript;
+    const tokens = this.tokenize(templates.join('\n'));
+    const out = [];
+    while (out.length < count) out.push(...tokens);
+    return out.slice(0, count);
+  },
+  decorateToken(token) {
+    const safe = escHtml(token);
+    if (/^(const|let|var|function|return|export|class|async|await|def|yield|fn|pub|struct|match)$/.test(token)) return `<span class="code-token code-keyword">${safe}</span>`;
+    if (/^[{}()[\];,:.=+\-<>!|&]+$/.test(token)) return `<span class="code-token code-punct">${safe}</span>`;
+    if (token === '↵' || token === '⇥' || token === '··') return `<span class="code-token code-space">${safe}</span>`;
+    return `<span class="code-token">${safe}</span>`;
+  },
+  tokenClass(token) {
+    if (/^(const|let|var|function|return|export|class|async|await|def|yield|fn|pub|struct|match)$/.test(token)) return 'code-keyword';
+    if (/^[{}()[\];,:.=+\-<>!|&]+$/.test(token)) return 'code-punct';
+    if (token === '↵' || token === '⇥' || token === '··') return 'code-space';
+    return 'code-token';
+  },
+};
+
+const Ambient = {
+  ctx: null,
+  gain: null,
+  layers: [],
+  start() {
+    try {
+      if (this.ctx) return;
+      this.ctx = Sound.ctx();
+      this.gain = this.ctx.createGain();
+      this.gain.gain.setValueAtTime(STATE.ambientVolume, this.ctx.currentTime);
+      this.gain.connect(this.ctx.destination);
+      [55, 110, 220].forEach((freq, i) => {
+        const osc = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const amp = this.ctx.createGain();
+        osc.type = i === 0 ? 'sine' : 'triangle';
+        osc.frequency.value = freq;
+        filter.type = 'lowpass';
+        filter.frequency.value = 240 + i * 180;
+        amp.gain.value = i === 0 ? 0.22 : 0;
+        osc.connect(filter); filter.connect(amp); amp.connect(this.gain);
+        osc.start();
+        this.layers.push({ osc, filter, amp });
+      });
+    } catch {}
+  },
+  stop() {
+    if (!this.ctx || !this.gain) return;
+    const t = this.ctx.currentTime;
+    this.gain.gain.linearRampToValueAtTime(0, t + 0.35);
+    this.layers.forEach(layer => { try { layer.osc.stop(t + 0.4); } catch {} });
+    this.ctx = null; this.gain = null; this.layers = [];
+  },
+  update(wpm, accuracy = 100) {
+    if (!STATE.ambientEnabled) return;
+    this.start();
+    if (!this.ctx || !this.gain) return;
+    const t = this.ctx.currentTime;
+    const damp = accuracy < 92 ? 0.45 : 1;
+    this.gain.gain.linearRampToValueAtTime(STATE.ambientVolume * damp, t + 0.18);
+    this.layers.forEach((layer, i) => {
+      const threshold = [0, 60, 90][i];
+      const target = wpm >= threshold ? [0.20, 0.11, 0.075][i] * damp : 0;
+      layer.amp.gain.linearRampToValueAtTime(target, t + 0.25);
+      layer.filter.frequency.linearRampToValueAtTime(220 + Math.min(120, wpm) * (i + 2), t + 0.25);
+    });
+  },
+};
+
+const Ghost = {
+  target() {
+    if (STATE.history.length === 0) return STATE.bestWPM || 60;
+    const avg10 = STATE.history.slice(0, 10).reduce((sum, row) => sum + row.wpm, 0) / Math.min(STATE.history.length, 10);
+    return Math.max(30, Math.round(Math.max(STATE.bestWPM || 0, avg10 || 0)));
+  },
+  start() {
+    STATE.ghost.targetWpm = this.target();
+    STATE.ghost.startedAt = Date.now();
+    if (D.ghostMarker) D.ghostMarker.style.width = '0%';
+  },
+  update() {
+    if (!STATE.ghost.enabled || !D.ghostMarker || STATE.status !== 'running') return;
+    const elapsedMin = Math.max(0, (Date.now() - STATE.startTime + STATE.elapsedPaused) / 60000);
+    const expectedWords = STATE.ghost.targetWpm * elapsedMin;
+    const pct = Math.min(100, (expectedWords / Math.max(STATE.targetWords.length, 1)) * 100);
+    D.ghostMarker.style.width = `${pct}%`;
+  },
+};
+
+const ProUI = {
+  apply() {
+    document.body.classList.toggle('zen-active', STATE.zenMode);
+    document.body.classList.toggle('blind-active', STATE.blindMode);
+    D.zenToggle?.classList.toggle('active', STATE.zenMode);
+    D.blindToggle?.classList.toggle('active', STATE.blindMode);
+    D.ghostToggle?.classList.toggle('active', STATE.ghost.enabled);
+    D.ambientToggle?.classList.toggle('active', STATE.ambientEnabled);
+    D.audioDeck?.querySelectorAll('[data-audio-profile]').forEach(btn => btn.classList.toggle('active', btn.dataset.audioProfile === STATE.audioProfile));
+    if (D.ambientVolume) D.ambientVolume.value = Math.round(STATE.ambientVolume * 100);
+    if (D.codeLanguage) D.codeLanguage.value = STATE.codeLanguage;
+    if (D.focusFloor) D.focusFloor.value = STATE.focusLock.accuracyFloor;
+    if (D.focusFloorValue) D.focusFloorValue.textContent = `${STATE.focusLock.accuracyFloor}%`;
+  },
+  renderHeatmap() {
+    if (!D.heatmapKeyboard) return;
+    const rows = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+    const matrix = Object.values(STATE.latencyMatrix);
+    const byKey = matrix.reduce((map, row) => {
+      if (!row.to || row.to.length !== 1) return map;
+      const key = row.to.toLowerCase();
+      const item = map[key] || { total: 0, count: 0, errors: 0 };
+      item.total += row.avg * row.count;
+      item.count += row.count;
+      item.errors += row.errors || 0;
+      map[key] = item;
+      return map;
+    }, {});
+    const maxAvg = Math.max(160, ...Object.values(byKey).map(v => v.total / Math.max(1, v.count)));
+    D.heatmapKeyboard.innerHTML = rows.map((row, ri) => `
+      <div class="key-row row-${ri}">
+        ${row.split('').map(ch => {
+          const stat = byKey[ch];
+          const avg = stat ? Math.round(stat.total / Math.max(1, stat.count)) : 0;
+          const heat = stat ? Math.min(1, avg / maxAvg) : 0;
+          const hot = avg >= 145 || (stat?.errors || 0) > 0;
+          return `<div class="heat-key ${hot ? 'hot' : 'cool'}" style="--heat:${heat.toFixed(2)}" title="${ch.toUpperCase()} avg ${avg || 0}ms">${ch}</div>`;
+        }).join('')}
+      </div>`).join('');
+    const slow = Latency.slowest(5);
+    D.heatmapSummary.textContent = slow.length
+      ? `Slowest transitions: ${slow.map(r => `${r.from}-${r.to} ${r.avg}ms`).join(', ')}.`
+      : 'No transition samples yet. Complete a run to populate the biomechanical matrix.';
+  },
+  setTab(tab) {
+    D.proTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.proTab === tab));
+    D.proTabPanels.forEach(panel => panel.classList.toggle('active', panel.dataset.proPanel === tab));
+    if (tab === 'heatmap') this.renderHeatmap();
+  },
+};
+
+const FocusLock = {
+  engage() {
+    const text = D.focusDraft?.value.trim();
+    if (!text) return;
+    STATE.focusLock.active = true;
+    STATE.focusLock.unlocked = false;
+    STATE.focusLock.source = text;
+    STATE.customText = text;
+    setMode('custom');
+    setCategory('custom');
+    D.focusStatus.textContent = `Locked until ${STATE.focusLock.accuracyFloor}% accuracy is reached.`;
+    D.focusRelease.disabled = true;
+    closeAllPanels();
+    startTest();
+  },
+  complete(accuracy) {
+    if (!STATE.focusLock.active) return;
+    if (accuracy >= STATE.focusLock.accuracyFloor) {
+      STATE.focusLock.unlocked = true;
+      STATE.focusLock.active = false;
+      D.focusStatus.textContent = `Unlocked at ${accuracy}% accuracy.`;
+      D.focusRelease.disabled = false;
+    } else {
+      D.focusStatus.textContent = `Still locked: ${accuracy}% accuracy is below ${STATE.focusLock.accuracyFloor}%.`;
+      D.focusRelease.disabled = true;
+    }
+  },
+  blocks(e) {
+    if (!STATE.focusLock.active || STATE.focusLock.unlocked) return false;
+    const key = e.key.toLowerCase();
+    return (e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a', 'l', 'n', 'o', 's', 'w'].includes(key);
+  },
+};
+
 const Calibration = {
   // Record the result of typing one word
   record(word, typed, errors, timeMs) {
@@ -569,6 +1045,7 @@ function getWordPool() {
   if (cat === 'quotes' || cat === 'mixed') pool.push(...WORD_BANK.quotes);
   if (cat === 'general' || cat === 'mixed') pool.push(...WORD_BANK.general);
   if (cat === 'tech') pool.push(...WORD_BANK.tech);
+  if (cat === 'code' || cat === 'fluidity') return null;
   if (cat === 'bank' || cat === 'custom') return null; // handled separately
   return pool;
 }
@@ -578,6 +1055,9 @@ function flattenPoolToWords(pool) {
 }
 
 function generateWords(count) {
+  if (STATE.category === 'fluidity') return Fluidity.generateDrill(count);
+  if (STATE.category === 'code') return CodeForge.words(count);
+
   // Bank / custom text mode
   if ((STATE.category === 'bank' || STATE.category === 'custom') && STATE.customText) {
     const words = STATE.customText.trim().split(/\s+/).filter(Boolean);
@@ -604,11 +1084,12 @@ function renderWords() {
   STATE.targetWords.forEach((word, idx) => {
     const span = document.createElement('span');
     span.className = 'word';
+    if (STATE.category === 'code') span.classList.add('code-word');
     if (weak.has(word) && STATE.calibration.active) span.classList.add('weak-word');
     span.id = `w${idx}`;
     word.split('').forEach(ch => {
       const c = document.createElement('span');
-      c.className = 'char';
+      c.className = STATE.category === 'code' ? `char ${CodeForge.tokenClass(word)}` : 'char';
       c.textContent = ch;
       span.appendChild(c);
     });
@@ -619,6 +1100,7 @@ function renderWords() {
 }
 
 function highlightCurrentWord() {
+  if (STATE.blindMode) return;
   document.querySelectorAll('.word.current').forEach(el => el.classList.remove('current'));
   const el = document.getElementById(`w${STATE.currentWordIndex}`);
   if (el) {
@@ -628,6 +1110,7 @@ function highlightCurrentWord() {
 }
 
 function updateCharHighlight() {
+  if (STATE.blindMode) return;
   const el = document.getElementById(`w${STATE.currentWordIndex}`);
   if (!el) return;
   const target = STATE.targetWords[STATE.currentWordIndex] || '';
@@ -645,6 +1128,7 @@ function updateCharHighlight() {
 }
 
 function updateCaret() {
+  if (STATE.blindMode) return;
   const el = document.getElementById(`w${STATE.currentWordIndex}`);
   if (!el) return;
   const chars = el.querySelectorAll('.char');
@@ -659,10 +1143,20 @@ function updateCaret() {
 }
 
 function markWordDone(idx, correct) {
+  if (STATE.blindMode) return;
   const el = document.getElementById(`w${idx}`);
   if (!el) return;
   el.classList.remove('current', 'weak-word');
   el.classList.add(correct ? 'done-correct' : 'done-error');
+}
+
+function revealBlindResults() {
+  if (!STATE.blindMode) return;
+  STATE.wordResults.forEach((row, idx) => {
+    const el = document.getElementById(`w${idx}`);
+    if (!el) return;
+    el.classList.add(row.correct ? 'done-correct' : 'done-error');
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -687,12 +1181,12 @@ function handleInput(e) {
     Calibration.record(target, typed, wordErrors, timeMs);
 
     STATE.wordResults.push({ word: target, typed, correct, errors: wordErrors, time: timeMs });
-    STATE.totalKeystrokes += typed.length + 1;
+    STATE.totalKeystrokes += 1; // final separating space
     if (correct) {
-      STATE.correctKeystrokes += typed.length + 1;
+      STATE.correctKeystrokes += 1;
       Sound.play('word');
     } else {
-      STATE.errors += wordErrors;
+      STATE.errors += Math.max(0, target.length - typed.length);
       Sound.play('error');
     }
     markWordDone(STATE.currentWordIndex, correct);
@@ -716,6 +1210,11 @@ function handleInput(e) {
   } else {
     const prevLen = STATE.currentInput.length;
     STATE.currentInput = val;
+    if (val.length < prevLen) {
+      updateCharHighlight();
+      updateStats();
+      return;
+    }
     STATE.totalKeystrokes++;
 
     // Per-keystroke accuracy
@@ -772,6 +1271,7 @@ function updateStats() {
   D.rawWpmValue.textContent = raw;
   D.accuracyValue.textContent = `${acc}%`;
   D.errorsValue.textContent = STATE.errors;
+  STATE.wpm = net;
 
   if (['30s','1m','5m'].includes(STATE.mode)) {
     const elapsed = Math.floor((now - STATE.startTime) / 1000);
@@ -789,6 +1289,8 @@ function updateStats() {
     STATE.sparklineData.push({ time: now, wpm: net });
     drawSparkline();
   }
+  Ambient.update(net, acc);
+  Ghost.update();
 }
 
 // ─────────────────────────────────────────────
@@ -973,6 +1475,10 @@ function startTest() {
   if (STATE.targetWords.length === 0) return;
 
   STATE.status = 'running';
+  STATE.activeRunId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  STATE.activeRunTelemetry = [];
+  STATE.lastKey = null;
+  STATE.lastKeyTime = 0;
   STATE.startTime = Date.now();
   STATE.wordStartTime = Date.now();
   STATE.sparklineData = [];
@@ -984,6 +1490,7 @@ function startTest() {
   D.pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Pause';
 
   renderWords();
+  Ghost.start();
 
   // Focus input
   D.ghostInput.value = '';
@@ -1034,10 +1541,15 @@ function resetState() {
   STATE.startTime = null;
   STATE.elapsedPaused = 0;
   STATE.sparklineData = [];
+  STATE.activeRunTelemetry = [];
+  STATE.lastKey = null;
+  STATE.lastKeyTime = 0;
 
   D.stage.classList.remove('running');
   D.pauseOverlay.classList.remove('visible');
   D.sparklineBar.style.display = 'none';
+  if (D.ghostMarker) D.ghostMarker.style.width = '0%';
+  if (!STATE.ambientEnabled) Ambient.stop();
   D.ghostInput.value = '';
 
   D.startBtn.disabled = false;
@@ -1090,6 +1602,26 @@ function finishTest() {
 
   Store.saveStats();
   Store.saveCalibration();
+  Store.saveLatency();
+
+  const calibrationErrorIndex = Math.round((STATE.errors / Math.max(STATE.totalKeystrokes, 1)) * 10000) / 100;
+  TypeRushVault.add('session_summaries', {
+    id: STATE.activeRunId || `run-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    wpm: net,
+    rawWpm: raw,
+    accuracy: acc,
+    errors: STATE.errors,
+    calibrationErrorIndex,
+    mode: STATE.mode,
+    category: STATE.category,
+    durationSec: elapsedSec,
+  });
+  TypeRushVault.bulkAdd('keystroke_telemetry', STATE.activeRunTelemetry.slice());
+
+  revealBlindResults();
+  FocusLock.complete(acc);
+  Ambient.update(0, acc);
 
   Sound.play('finish');
   if (net >= 35) launchConfetti();
@@ -1160,6 +1692,7 @@ function setMode(mode) {
 function setCategory(cat) {
   STATE.category = cat;
   D.catPills.forEach(p => p.classList.toggle('active', p.dataset.category === cat));
+  D.stage?.classList.toggle('code-mode', cat === 'code');
   Store.saveSettings();
 }
 
@@ -1191,15 +1724,17 @@ function toggleTheme() {
 function openPanel(id) {
   closeAllPanels();
   if (!id) return;
-  const panel = id === 'history' ? D.historyPanel : id === 'bank' ? D.bankPanel : null;
+  const panel = id === 'history' ? D.historyPanel : id === 'bank' ? D.bankPanel : id === 'pro' ? D.proPanel : null;
   if (!panel) return;
   panel.classList.add('open');
   D.panelBackdrop.classList.add('visible');
+  if (id === 'pro') ProUI.renderHeatmap();
 }
 
 function closeAllPanels() {
   D.historyPanel.classList.remove('open');
   D.bankPanel.classList.remove('open');
+  D.proPanel?.classList.remove('open');
   D.panelBackdrop.classList.remove('visible');
 }
 
@@ -1236,7 +1771,7 @@ function attach() {
   // Typing
   D.ghostInput.addEventListener('input', handleInput);
   D.ghostInput.addEventListener('paste', e => e.preventDefault());
-  D.ghostInput.addEventListener('keydown', handleCapsLock);
+  D.ghostInput.addEventListener('keydown', e => { Latency.recordKey(e.key); handleCapsLock(e); });
   D.ghostInput.addEventListener('keyup', handleCapsLock);
   D.stage.addEventListener('click', () => STATE.status === 'running' && D.ghostInput.focus());
 
@@ -1274,6 +1809,49 @@ function attach() {
     D.soundToggle.classList.toggle('active', STATE.soundEnabled);
     D.soundIcon.className = STATE.soundEnabled ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
     Store.saveSettings();
+  });
+
+  D.audioDeck?.querySelectorAll('[data-audio-profile]').forEach(btn => btn.addEventListener('click', () => {
+    STATE.audioProfile = btn.dataset.audioProfile;
+    STATE.soundEnabled = true;
+    D.soundToggle.classList.add('active');
+    D.soundIcon.className = 'fa-solid fa-volume-high';
+    ProUI.apply();
+    Store.saveSettings();
+    Store.savePro();
+    Sound.play('key');
+  }));
+  D.ambientToggle?.addEventListener('click', () => {
+    STATE.ambientEnabled = !STATE.ambientEnabled;
+    if (STATE.ambientEnabled) Ambient.start(); else Ambient.stop();
+    ProUI.apply();
+    Store.savePro();
+  });
+  D.ambientVolume?.addEventListener('input', () => {
+    STATE.ambientVolume = Number(D.ambientVolume.value) / 100;
+    if (Ambient.gain && Ambient.ctx) Ambient.gain.gain.linearRampToValueAtTime(STATE.ambientVolume, Ambient.ctx.currentTime + 0.05);
+    Store.savePro();
+  });
+  D.zenToggle?.addEventListener('click', () => {
+    STATE.zenMode = !STATE.zenMode;
+    ProUI.apply();
+    Store.savePro();
+  });
+  D.blindToggle?.addEventListener('click', () => {
+    if (STATE.status === 'running') return;
+    STATE.blindMode = !STATE.blindMode;
+    ProUI.apply();
+    Store.savePro();
+  });
+  D.ghostToggle?.addEventListener('click', () => {
+    STATE.ghost.enabled = !STATE.ghost.enabled;
+    ProUI.apply();
+    Store.savePro();
+  });
+  D.codeLanguage?.addEventListener('change', () => {
+    STATE.codeLanguage = D.codeLanguage.value;
+    Store.savePro();
+    if (STATE.category === 'code' && STATE.status !== 'running') setCategory('code');
   });
 
   // Streak
@@ -1322,6 +1900,46 @@ function attach() {
     if (item) Bank.select(item.dataset.id);
   });
 
+  // Pro Observatory
+  D.proBtn?.addEventListener('click', () => openPanel('pro'));
+  D.proClose?.addEventListener('click', closeAllPanels);
+  D.proTabs.forEach(btn => btn.addEventListener('click', () => ProUI.setTab(btn.dataset.proTab)));
+  D.heatmapRefresh?.addEventListener('click', () => ProUI.renderHeatmap());
+  D.vaultExportJson?.addEventListener('click', async () => {
+    D.vaultStatus.textContent = 'Compiling JSON...';
+    const payload = await TypeRushVault.exportJson();
+    const raw = JSON.stringify(payload, null, 2);
+    const encrypted = await TypeRushVault.encryptText(raw, D.vaultPassphrase?.value || '');
+    TypeRushVault.download(`typerush-vault-${Date.now()}${encrypted ? '.encrypted' : ''}.json`, 'application/json', encrypted || raw);
+    D.vaultStatus.textContent = `${encrypted ? 'Encrypted and exported' : 'Exported'} ${payload.session_summaries.length} sessions and ${payload.keystroke_telemetry.length} telemetry rows.`;
+  });
+  D.vaultExportCsv?.addEventListener('click', async () => {
+    D.vaultStatus.textContent = 'Compiling CSV...';
+    const payload = await TypeRushVault.exportJson();
+    const csv = [
+      'session_summaries',
+      TypeRushVault.toCsv(payload.session_summaries),
+      '',
+      'keystroke_telemetry',
+      TypeRushVault.toCsv(payload.keystroke_telemetry),
+    ].join('\n');
+    const encrypted = await TypeRushVault.encryptText(csv, D.vaultPassphrase?.value || '');
+    TypeRushVault.download(`typerush-vault-${Date.now()}${encrypted ? '.encrypted.json' : '.csv'}`, encrypted ? 'application/json' : 'text/csv', encrypted || csv);
+    D.vaultStatus.textContent = `${encrypted ? 'Encrypted and exported' : 'Exported'} ${payload.session_summaries.length} sessions and ${payload.keystroke_telemetry.length} telemetry rows.`;
+  });
+  D.focusFloor?.addEventListener('input', () => {
+    STATE.focusLock.accuracyFloor = Number(D.focusFloor.value);
+    D.focusFloorValue.textContent = `${STATE.focusLock.accuracyFloor}%`;
+    Store.savePro();
+  });
+  D.focusEngage?.addEventListener('click', () => FocusLock.engage());
+  D.focusRelease?.addEventListener('click', () => {
+    if (!STATE.focusLock.unlocked) return;
+    STATE.focusLock.active = false;
+    STATE.focusLock.source = '';
+    D.focusStatus.textContent = 'Unlocked.';
+  });
+
   // Backdrop
   D.panelBackdrop.addEventListener('click', closeAllPanels);
 
@@ -1339,9 +1957,18 @@ function attach() {
   // Caps lock detection
   document.addEventListener('keydown', handleCapsLock);
   document.addEventListener('keyup', handleCapsLock);
+  document.addEventListener('copy', e => { if (STATE.focusLock.active && !STATE.focusLock.unlocked) e.preventDefault(); });
+  document.addEventListener('paste', e => { if (STATE.focusLock.active && !STATE.focusLock.unlocked) e.preventDefault(); });
+  window.addEventListener('beforeunload', e => {
+    if (STATE.focusLock.active && !STATE.focusLock.unlocked) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
 
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {
+    if (FocusLock.blocks(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const active = document.activeElement;
     const isInput = active === D.ghostInput || active === D.customTextarea ||
                     active === D.bankTextarea || active === D.bankTitleInput;
@@ -1357,7 +1984,7 @@ function attach() {
       }
       if (e.key === 'Escape') {
         if (D.resultsOverlay.classList.contains('visible')) { hideResults(); return; }
-        if (D.historyPanel.classList.contains('open') || D.bankPanel.classList.contains('open')) { closeAllPanels(); return; }
+        if (D.historyPanel.classList.contains('open') || D.bankPanel.classList.contains('open') || D.proPanel?.classList.contains('open')) { closeAllPanels(); return; }
         if (D.streakSection.style.display !== 'none') { D.streakSection.style.display = 'none'; return; }
         if (STATE.status !== 'idle') { e.preventDefault(); resetState(); }
       }
@@ -1391,6 +2018,9 @@ function init() {
     D.soundToggle.classList.add('active');
     D.soundIcon.className = 'fa-solid fa-volume-high';
   }
+  ProUI.apply();
+  ProUI.renderHeatmap();
+  TypeRushVault.open();
 
   // Calibration UI
   Calibration.analyze();
