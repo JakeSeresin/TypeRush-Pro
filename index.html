@@ -82,6 +82,7 @@
         <button class="btn btn-primary" id="resultsTryAgain">
           <i class="fa-solid fa-rotate-right"></i> Try Again
         </button>
+        <button class="btn btn-ghost" id="resultsInsights">View Insights</button>
         <button class="btn btn-ghost" id="resultsClose">Dismiss</button>
       </div>
     </div>
@@ -127,13 +128,47 @@
       <span class="panel-title">Pro Observatory</span>
       <button class="panel-close" id="proClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="pro-tabs" role="tablist" aria-label="Pro modules">
-      <button class="pro-tab active" data-pro-tab="heatmap" type="button">Heatmap</button>
+    <div class="pro-tabs pro-tabs-four" role="tablist" aria-label="Pro modules">
+      <button class="pro-tab active" data-pro-tab="commander" type="button">Commander</button>
+      <button class="pro-tab" data-pro-tab="insights" type="button">Insights</button>
       <button class="pro-tab" data-pro-tab="vault" type="button">Vault</button>
       <button class="pro-tab" data-pro-tab="focus" type="button">Focus-Lock</button>
     </div>
     <div class="panel-body pro-panel-body">
-      <section class="pro-tab-panel active" data-pro-panel="heatmap">
+      <section class="pro-tab-panel active" data-pro-panel="commander">
+        <div class="panel-card pro-drawer">
+          <div class="panel-card-head"><span>Pro Commander</span></div>
+          <div class="pro-control-stack" id="proControlStrip">
+            <div class="pro-control">
+              <span class="sub-label">Audio Deck</span>
+              <div class="segmented" id="audioDeck">
+                <button class="seg active" data-audio-profile="modelM" type="button">Model M</button>
+                <button class="seg" data-audio-profile="linear" type="button">Linear</button>
+                <button class="seg" data-audio-profile="retro" type="button">Retro</button>
+                <button class="seg" data-audio-profile="holo" type="button">Holo</button>
+              </div>
+            </div>
+            <div class="pro-control pro-control-ambient">
+              <button class="btn btn-ghost btn-sm" id="ambientToggle" type="button">Ambient Flow</button>
+              <input class="pro-range" id="ambientVolume" type="range" min="0" max="100" value="28" aria-label="Ambient volume">
+            </div>
+            <div class="pro-control pro-control-modes">
+              <button class="btn btn-ghost btn-sm" id="zenToggle" type="button">Zen Scribe</button>
+              <button class="btn btn-ghost btn-sm" id="blindToggle" type="button">Blind-Type</button>
+              <button class="btn btn-ghost btn-sm active" id="ghostToggle" type="button">Ghost</button>
+            </div>
+            <div class="pro-control pro-code-select">
+              <span class="sub-label">Code-Forge</span>
+              <select class="pro-select" id="codeLanguage" aria-label="Code language">
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+                <option value="rust">Rust</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="pro-tab-panel" data-pro-panel="insights">
         <div class="panel-card">
           <div class="panel-card-head">
             <span>N-Gram Latency Diagnostics</span>
@@ -179,19 +214,31 @@
 
     <!-- Top Bar -->
     <header class="topbar">
-      <div class="topbar-brand">
-        <span class="brand-mark"></span>
-        <span class="brand-name">TypeRush</span>
-        <span class="brand-version">Pro</span>
+      <div class="topbar-left">
+        <div class="topbar-brand">
+          <span class="brand-mark"></span>
+          <span class="brand-name">TypeRush</span>
+          <span class="brand-version">Pro</span>
+        </div>
+        <div class="pill-group topbar-categories" id="categoryGroup">
+          <button class="pill active" data-category="mixed">All</button>
+          <button class="pill" data-category="general">General</button>
+          <button class="pill" data-category="quotes">Quotes</button>
+          <button class="pill" data-category="tech">Tech</button>
+          <button class="pill" data-category="fluidity">Fluidity</button>
+          <button class="pill" data-category="code">Code</button>
+          <button class="pill" data-category="bank" id="bankCategoryBtn">Bank</button>
+        </div>
       </div>
 
-      <div class="topbar-actions">
-        <!-- Streak Indicator -->
+      <div class="topbar-center">
         <button class="topbar-btn streak-btn" id="streakBtn" title="Daily Streak">
           <i class="fa-solid fa-fire"></i>
           <span id="streakCount">0</span>
         </button>
+      </div>
 
+      <div class="topbar-actions">
         <!-- Calibration Engine indicator -->
         <button class="topbar-btn calibration-btn" id="calibrationBtn" title="Calibration Engine active">
           <i class="fa-solid fa-brain"></i>
@@ -204,8 +251,9 @@
         <button class="topbar-btn" id="bankBtn" title="Text Bank">
           <i class="fa-solid fa-database"></i>
         </button>
-        <button class="topbar-btn" id="proBtn" title="Pro Observatory">
+        <button class="topbar-btn pro-commander-btn" id="proBtn" title="Pro Commander">
           <i class="fa-solid fa-chart-line"></i>
+          <span>PRO COMMANDER</span>
         </button>
         <button class="topbar-btn sound-toggle" id="soundToggle" title="Sound">
           <i class="fa-solid fa-volume-xmark" id="soundIcon"></i>
@@ -234,17 +282,6 @@
 
     <!-- Controls Row -->
     <div class="controls-row">
-      <!-- Category -->
-      <div class="pill-group" id="categoryGroup">
-        <button class="pill active" data-category="mixed">All</button>
-        <button class="pill" data-category="general">General</button>
-        <button class="pill" data-category="quotes">Quotes</button>
-        <button class="pill" data-category="tech">Tech</button>
-        <button class="pill" data-category="fluidity">Fluidity Drill</button>
-        <button class="pill" data-category="code">Code-Forge</button>
-        <button class="pill" data-category="bank" id="bankCategoryBtn">Bank</button>
-      </div>
-
       <!-- Mode -->
       <div class="pill-group" id="modeGroup">
         <button class="pill active" data-mode="30s">30s</button>
@@ -259,36 +296,6 @@
         <button class="pill font-pill" data-size="small" title="Small">A</button>
         <button class="pill font-pill active" data-size="medium" title="Medium">A</button>
         <button class="pill font-pill" data-size="large" title="Large">A</button>
-      </div>
-    </div>
-
-    <!-- Pro Control Matrix -->
-    <div class="pro-control-strip" id="proControlStrip">
-      <div class="pro-control">
-        <span class="sub-label">Audio Deck</span>
-        <div class="segmented" id="audioDeck">
-          <button class="seg active" data-audio-profile="modelM" type="button">Model M</button>
-          <button class="seg" data-audio-profile="linear" type="button">Linear</button>
-          <button class="seg" data-audio-profile="retro" type="button">Retro</button>
-          <button class="seg" data-audio-profile="holo" type="button">Holo</button>
-        </div>
-      </div>
-      <div class="pro-control pro-control-ambient">
-        <button class="btn btn-ghost btn-sm" id="ambientToggle" type="button">Ambient Flow</button>
-        <input class="pro-range" id="ambientVolume" type="range" min="0" max="100" value="28" aria-label="Ambient volume">
-      </div>
-      <div class="pro-control pro-control-modes">
-        <button class="btn btn-ghost btn-sm" id="zenToggle" type="button">Zen Scribe</button>
-        <button class="btn btn-ghost btn-sm" id="blindToggle" type="button">Blind-Type</button>
-        <button class="btn btn-ghost btn-sm active" id="ghostToggle" type="button">Ghost</button>
-      </div>
-      <div class="pro-control pro-code-select">
-        <span class="sub-label">Code</span>
-        <select class="pro-select" id="codeLanguage" aria-label="Code language">
-          <option value="javascript">JavaScript</option>
-          <option value="python">Python</option>
-          <option value="rust">Rust</option>
-        </select>
       </div>
     </div>
 

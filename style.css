@@ -151,11 +151,19 @@ body {
 
 /* ===== Top Bar ===== */
 .topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1.25rem 0 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-left {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 1.25rem 0 0.5rem;
-  border-bottom: 1px solid var(--border);
+  gap: 0.8rem;
+  min-width: 0;
 }
 
 .topbar-brand {
@@ -197,7 +205,35 @@ body {
 .topbar-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.35rem;
+  min-width: 0;
+}
+
+.topbar-center {
+  display: flex;
+  justify-content: center;
+}
+
+.topbar-categories {
+  min-width: 0;
+  max-width: 520px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.topbar-categories::-webkit-scrollbar { display: none; }
+
+.pro-commander-btn {
+  width: auto;
+  padding: 0 0.7rem;
+  color: var(--accent-2);
+  border-color: rgba(124,106,255,0.26);
+  background: rgba(124,106,255,0.10);
+}
+.pro-commander-btn span {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
 }
 
 .topbar-btn {
@@ -600,6 +636,8 @@ body {
 
 .caret {
   position: absolute;
+  left: 0;
+  top: 0;
   width: 2px;
   height: 1.4em;
   background: var(--accent);
@@ -609,6 +647,8 @@ body {
   z-index: 3;
   display: none;
   box-shadow: 0 0 8px var(--accent-glow);
+  transform: translate3d(0, 0, 0);
+  will-change: transform, height;
 }
 
 .stage.running .caret { display: block; }
@@ -1268,9 +1308,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .fa-trash::before { content: "DEL"; font-size: 0.58em; }
 
 /* ===== TypeRush Pro Control Matrix ===== */
-.pro-control-strip {
+.pro-control-strip,
+.pro-control-stack {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 0.85fr) minmax(260px, 1.2fr) minmax(130px, 0.65fr);
+  grid-template-columns: 1fr;
   gap: 0.55rem;
   align-items: stretch;
 }
@@ -1339,6 +1380,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 
 /* ===== Pro Observatory Panel ===== */
 .pro-panel { width: min(620px, 100vw); right: min(-640px, -100vw); }
+.pro-panel.open { right: 0; }
 .pro-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1346,6 +1388,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   padding: 0.7rem 1.25rem;
   border-bottom: 1px solid var(--border);
 }
+.pro-tabs.pro-tabs-four { grid-template-columns: repeat(4, 1fr); }
 .pro-tab {
   border: 1px solid var(--border);
   background: var(--surface);
@@ -1373,6 +1416,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   border-radius: var(--radius-sm);
   padding: 1rem;
   box-shadow: var(--shadow-sm);
+}
+.panel-card.pro-drawer {
+  border-color: rgba(124,106,255,0.22);
+  box-shadow: var(--shadow-md), 0 0 28px rgba(124,106,255,0.08);
 }
 .panel-card-head {
   display: flex;
@@ -1569,11 +1616,32 @@ body:not(.blind-active) .stage.running .ghost-marker { display: block; }
 }
 
 @media (max-width: 860px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "left center"
+      "actions actions";
+  }
+  .topbar-left { grid-area: left; flex-wrap: wrap; }
+  .topbar-center { grid-area: center; }
+  .topbar-actions { grid-area: actions; justify-content: flex-start; flex-wrap: wrap; }
+  .topbar-categories { max-width: 100%; }
   .pro-control-strip { grid-template-columns: 1fr 1fr; }
   .pro-code-select { grid-column: span 2; }
 }
 
 @media (max-width: 580px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "left"
+      "center"
+      "actions";
+  }
+  .topbar-left { align-items: flex-start; }
+  .topbar-brand { width: 100%; }
+  .topbar-center { justify-content: flex-start; }
+  .pro-commander-btn { min-width: 150px; }
   .pro-control-strip { grid-template-columns: 1fr; }
   .pro-code-select { grid-column: auto; }
   .pro-control { align-items: stretch; flex-direction: column; }

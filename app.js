@@ -111,9 +111,11 @@ const STATE = {
   soundEnabled: false,
   proMode: true,
   audioProfile: 'modelM',
+  audioDeckSelected: 'modelM',
   ambientEnabled: false,
   ambientVolume: 0.28,
   zenMode: false,
+  isZenModeActive: false,
   blindMode: false,
   codeLanguage: 'javascript',
   latencyLogs: [],
@@ -185,6 +187,7 @@ const D = {
   resultBestWPM: document.getElementById('resultBestWPM'),
   resultsBadge: document.getElementById('resultsBadge'),
   resultsTryAgain: document.getElementById('resultsTryAgain'),
+  resultsInsights: document.getElementById('resultsInsights'),
   resultsClose: document.getElementById('resultsClose'),
   wpmChart: document.getElementById('wpmChart'),
   calibrationInsight: document.getElementById('calibrationInsight'),
@@ -294,10 +297,12 @@ const Store = {
     STATE.fontSizeLevel = settings.fontSizeLevel || 'medium';
 
     const pro = this.get(this.keys.pro, {});
-    STATE.audioProfile = pro.audioProfile || 'modelM';
+    STATE.audioProfile = pro.audioDeckSelected || pro.audioProfile || 'modelM';
+    STATE.audioDeckSelected = STATE.audioProfile;
     STATE.ambientEnabled = !!pro.ambientEnabled;
     STATE.ambientVolume = Number.isFinite(pro.ambientVolume) ? pro.ambientVolume : 0.28;
-    STATE.zenMode = !!pro.zenMode;
+    STATE.zenMode = pro.isZenModeActive !== undefined ? !!pro.isZenModeActive : !!pro.zenMode;
+    STATE.isZenModeActive = STATE.zenMode;
     STATE.blindMode = !!pro.blindMode;
     STATE.ghost.enabled = pro.ghostEnabled !== undefined ? !!pro.ghostEnabled : true;
     STATE.codeLanguage = pro.codeLanguage || 'javascript';
@@ -330,9 +335,11 @@ const Store = {
   savePro() {
     this.set(this.keys.pro, {
       audioProfile: STATE.audioProfile,
+      audioDeckSelected: STATE.audioDeckSelected,
       ambientEnabled: STATE.ambientEnabled,
       ambientVolume: STATE.ambientVolume,
       zenMode: STATE.zenMode,
+      isZenModeActive: STATE.isZenModeActive,
       blindMode: STATE.blindMode,
       ghostEnabled: STATE.ghost.enabled,
       codeLanguage: STATE.codeLanguage,
@@ -717,6 +724,8 @@ const Ghost = {
 
 const ProUI = {
   apply() {
+    STATE.audioDeckSelected = STATE.audioProfile;
+    STATE.isZenModeActive = STATE.zenMode;
     document.body.classList.toggle('zen-active', STATE.zenMode);
     document.body.classList.toggle('blind-active', STATE.blindMode);
     D.zenToggle?.classList.toggle('active', STATE.zenMode);
@@ -762,7 +771,7 @@ const ProUI = {
   setTab(tab) {
     D.proTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.proTab === tab));
     D.proTabPanels.forEach(panel => panel.classList.toggle('active', panel.dataset.proPanel === tab));
-    if (tab === 'heatmap') this.renderHeatmap();
+    if (tab === 'insights') this.renderHeatmap();
   },
 };
 
@@ -1137,8 +1146,9 @@ function updateCaret() {
   if (!targetChar) return;
   const rect = targetChar.getBoundingClientRect();
   const stageRect = D.stage.getBoundingClientRect();
-  D.caret.style.left = `${rect.left - stageRect.left + (pos >= chars.length ? rect.width : 0)}px`;
-  D.caret.style.top = `${rect.top - stageRect.top}px`;
+  const x = rect.left - stageRect.left + (pos >= chars.length ? rect.width : 0);
+  const y = rect.top - stageRect.top;
+  D.caret.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
   D.caret.style.height = `${rect.height}px`;
 }
 
@@ -1813,6 +1823,7 @@ function attach() {
 
   D.audioDeck?.querySelectorAll('[data-audio-profile]').forEach(btn => btn.addEventListener('click', () => {
     STATE.audioProfile = btn.dataset.audioProfile;
+    STATE.audioDeckSelected = STATE.audioProfile;
     STATE.soundEnabled = true;
     D.soundToggle.classList.add('active');
     D.soundIcon.className = 'fa-solid fa-volume-high';
@@ -1834,6 +1845,7 @@ function attach() {
   });
   D.zenToggle?.addEventListener('click', () => {
     STATE.zenMode = !STATE.zenMode;
+    STATE.isZenModeActive = STATE.zenMode;
     ProUI.apply();
     Store.savePro();
   });
@@ -1948,6 +1960,11 @@ function attach() {
 
   // Results modal
   D.resultsTryAgain.addEventListener('click', () => { hideResults(); startTest(); });
+  D.resultsInsights?.addEventListener('click', () => {
+    hideResults();
+    openPanel('pro');
+    ProUI.setTab('insights');
+  });
   D.resultsClose.addEventListener('click', hideResults);
   D.resultsOverlay.addEventListener('click', e => e.target === D.resultsOverlay && hideResults());
 
