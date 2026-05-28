@@ -4,13 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#080810">
-  <meta name="description" content="TypeRush Pro - offline-first cinematic typing speed training">
+  <meta name="description" content="TypeRush Pro — Calibrated speed training with biomechanical diagnostics">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="TypeRush Pro">
   <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
-  <title>TypeRush Pro - Calibrated Speed</title>
+  <title>TypeRush Pro</title>
 </head>
 <body>
 
@@ -18,6 +22,7 @@
   <div class="bg-layer bg-noise" aria-hidden="true"></div>
   <div class="bg-layer bg-glow-1" aria-hidden="true"></div>
   <div class="bg-layer bg-glow-2" aria-hidden="true"></div>
+  <div class="bg-layer bg-glow-3" aria-hidden="true"></div>
   <div class="bg-grid" aria-hidden="true"></div>
 
   <!-- Caps Lock Warning -->
@@ -61,7 +66,7 @@
           <span class="rs-label">Time</span>
           <span class="rs-value" id="resultTime">0s</span>
         </div>
-        <div class="rs-card">
+        <div class="rs-card rs-best">
           <span class="rs-label">Best WPM</span>
           <span class="rs-value" id="resultBestWPM">0</span>
         </div>
@@ -72,17 +77,18 @@
         <canvas id="wpmChart" height="100"></canvas>
       </div>
 
-      <!-- Difficulty insight from calibration engine -->
       <div class="calibration-insight" id="calibrationInsight" style="display:none;">
         <i class="fa-solid fa-brain"></i>
         <span id="calibrationInsightText"></span>
       </div>
 
       <div class="results-actions">
-        <button class="btn btn-primary" id="resultsTryAgain">
+        <button class="btn btn-primary btn-lg" id="resultsTryAgain">
           <i class="fa-solid fa-rotate-right"></i> Try Again
         </button>
-        <button class="btn btn-ghost" id="resultsInsights">View Insights</button>
+        <button class="btn btn-ghost" id="resultsInsights">
+          <i class="fa-solid fa-chart-line"></i> Insights
+        </button>
         <button class="btn btn-ghost" id="resultsClose">Dismiss</button>
       </div>
     </div>
@@ -91,7 +97,7 @@
   <!-- History Panel -->
   <div class="side-panel" id="historyPanel" role="complementary" aria-label="History">
     <div class="panel-header">
-      <span class="panel-title">History</span>
+      <span class="panel-title"><i class="fa-solid fa-clock-rotate-left"></i> History</span>
       <button class="panel-close" id="historyClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="panel-body" id="historyList">
@@ -99,7 +105,7 @@
     </div>
     <div class="panel-footer">
       <button class="btn btn-ghost btn-sm" id="historyClear">
-        <i class="fa-solid fa-trash"></i> Clear
+        <i class="fa-solid fa-trash"></i> Clear History
       </button>
     </div>
   </div>
@@ -107,7 +113,7 @@
   <!-- Custom Text Bank Panel -->
   <div class="side-panel" id="bankPanel" role="complementary" aria-label="Text Bank">
     <div class="panel-header">
-      <span class="panel-title">Text Bank</span>
+      <span class="panel-title"><i class="fa-solid fa-database"></i> Text Bank</span>
       <button class="panel-close" id="bankClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="bank-add-area">
@@ -125,7 +131,7 @@
   <!-- Pro Observatory Panel -->
   <div class="side-panel pro-panel" id="proPanel" role="complementary" aria-label="TypeRush Pro Observatory">
     <div class="panel-header">
-      <span class="panel-title">Pro Observatory</span>
+      <span class="panel-title"><i class="fa-solid fa-chart-line"></i> Pro Observatory</span>
       <button class="panel-close" id="proClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="pro-tabs pro-tabs-four" role="tablist" aria-label="Pro modules">
@@ -158,7 +164,7 @@
               <button class="btn btn-ghost btn-sm active" id="ghostToggle" type="button">Ghost</button>
             </div>
             <div class="pro-control pro-code-select">
-              <span class="sub-label">Code-Forge</span>
+              <span class="sub-label">Code-Forge Language</span>
               <select class="pro-select" id="codeLanguage" aria-label="Code language">
                 <option value="javascript">JavaScript</option>
                 <option value="python">Python</option>
@@ -168,6 +174,7 @@
           </div>
         </div>
       </section>
+
       <section class="pro-tab-panel" data-pro-panel="insights">
         <div class="panel-card">
           <div class="panel-card-head">
@@ -178,18 +185,22 @@
           <div class="keyboard-heatmap" id="heatmapKeyboard" aria-label="Latency keyboard heatmap"></div>
         </div>
       </section>
+
       <section class="pro-tab-panel" data-pro-panel="vault">
         <div class="panel-card">
           <div class="panel-card-head"><span>Analytical Vault</span></div>
           <p class="pro-copy">Session summaries and keystroke telemetry are stored locally in IndexedDB and exported client-side.</p>
           <input class="bank-title-input" id="vaultPassphrase" type="password" placeholder="Optional encryption passphrase" autocomplete="off" spellcheck="false">
           <div class="vault-actions">
-            <button class="btn btn-primary btn-sm" id="vaultExportJson" type="button">Export JSON</button>
+            <button class="btn btn-primary btn-sm" id="vaultExportJson" type="button">
+              <i class="fa-solid fa-file-export"></i> Export JSON
+            </button>
             <button class="btn btn-ghost btn-sm" id="vaultExportCsv" type="button">Export CSV</button>
           </div>
           <p class="pro-copy mono" id="vaultStatus">Vault idle.</p>
         </div>
       </section>
+
       <section class="pro-tab-panel" data-pro-panel="focus">
         <div class="panel-card">
           <div class="panel-card-head"><span>Focus-Lock Draft Utility</span></div>
@@ -216,11 +227,13 @@
     <header class="topbar">
       <div class="topbar-left">
         <div class="topbar-brand">
-          <span class="brand-mark"></span>
+          <div class="brand-mark-wrap">
+            <span class="brand-mark"></span>
+          </div>
           <span class="brand-name">TypeRush</span>
-          <span class="brand-version">Pro</span>
+          <span class="brand-version">PRO</span>
         </div>
-        <div class="pill-group topbar-categories" id="categoryGroup">
+        <nav class="pill-group topbar-categories" id="categoryGroup" aria-label="Text category">
           <button class="pill active" data-category="mixed">All</button>
           <button class="pill" data-category="general">General</button>
           <button class="pill" data-category="quotes">Quotes</button>
@@ -228,37 +241,35 @@
           <button class="pill" data-category="fluidity">Fluidity</button>
           <button class="pill" data-category="code">Code</button>
           <button class="pill" data-category="bank" id="bankCategoryBtn">Bank</button>
-        </div>
+        </nav>
       </div>
 
       <div class="topbar-center">
-        <button class="topbar-btn streak-btn" id="streakBtn" title="Daily Streak">
+        <button class="topbar-btn streak-btn" id="streakBtn" title="Daily Streak" aria-label="View daily streak">
           <i class="fa-solid fa-fire"></i>
           <span id="streakCount">0</span>
         </button>
       </div>
 
       <div class="topbar-actions">
-        <!-- Calibration Engine indicator -->
-        <button class="topbar-btn calibration-btn" id="calibrationBtn" title="Calibration Engine active">
+        <button class="topbar-btn calibration-btn" id="calibrationBtn" title="Calibration Engine" aria-label="Toggle calibration engine">
           <i class="fa-solid fa-brain"></i>
           <span class="calibration-dot" id="calibrationDot"></span>
         </button>
-
-        <button class="topbar-btn" id="historyBtn" title="History">
+        <button class="topbar-btn" id="historyBtn" title="History" aria-label="View history">
           <i class="fa-solid fa-clock-rotate-left"></i>
         </button>
-        <button class="topbar-btn" id="bankBtn" title="Text Bank">
+        <button class="topbar-btn" id="bankBtn" title="Text Bank" aria-label="Text bank">
           <i class="fa-solid fa-database"></i>
         </button>
-        <button class="topbar-btn pro-commander-btn" id="proBtn" title="Pro Commander">
+        <button class="topbar-btn pro-commander-btn" id="proBtn" title="Pro Observatory" aria-label="Open pro observatory">
           <i class="fa-solid fa-chart-line"></i>
-          <span>PRO COMMANDER</span>
+          <span>PRO</span>
         </button>
-        <button class="topbar-btn sound-toggle" id="soundToggle" title="Sound">
+        <button class="topbar-btn sound-toggle" id="soundToggle" title="Toggle sound" aria-label="Toggle sound">
           <i class="fa-solid fa-volume-xmark" id="soundIcon"></i>
         </button>
-        <button class="topbar-btn theme-toggle" id="themeToggle" title="Toggle theme">
+        <button class="topbar-btn theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle light/dark theme">
           <i class="fa-solid fa-circle-half-stroke" id="themeIcon"></i>
         </button>
       </div>
@@ -269,7 +280,7 @@
       <div class="streak-header">
         <span class="streak-title"><i class="fa-solid fa-fire"></i> Daily Streak</span>
         <span class="streak-count-label"><span id="streakDays">0</span> day streak</span>
-        <button class="streak-close" id="streakClose"><i class="fa-solid fa-chevron-up"></i></button>
+        <button class="streak-close" id="streakClose" aria-label="Close streak"><i class="fa-solid fa-chevron-up"></i></button>
       </div>
       <div class="streak-grid" id="streakGrid"></div>
       <div class="streak-legend">
@@ -280,114 +291,129 @@
       </div>
     </div>
 
-    <!-- Controls Row -->
-    <div class="controls-row">
-      <!-- Mode -->
-      <div class="pill-group" id="modeGroup">
-        <button class="pill active" data-mode="30s">30s</button>
-        <button class="pill" data-mode="1m">1m</button>
-        <button class="pill" data-mode="5m">5m</button>
-        <button class="pill" data-mode="wordCount">Words</button>
-        <button class="pill" data-mode="custom">Custom</button>
-      </div>
+    <!-- Main Content Area: controls + stage side-by-side on wide screens -->
+    <div class="main-layout">
 
-      <!-- Font Size -->
-      <div class="pill-group font-group">
-        <button class="pill font-pill" data-size="small" title="Small">A</button>
-        <button class="pill font-pill active" data-size="medium" title="Medium">A</button>
-        <button class="pill font-pill" data-size="large" title="Large">A</button>
-      </div>
-    </div>
+      <!-- Left Column: Controls -->
+      <aside class="controls-column">
 
-    <!-- Sub-controls (word count / custom text) -->
-    <div class="sub-controls" id="subControls">
-      <!-- Word count picker -->
-      <div class="wc-picker" id="wcPicker" style="display:none;">
-        <span class="sub-label">Words:</span>
-        <div class="pill-group">
-          <button class="pill wc-pill" data-count="10">10</button>
-          <button class="pill wc-pill active" data-count="25">25</button>
-          <button class="pill wc-pill" data-count="50">50</button>
-          <button class="pill wc-pill" data-count="100">100</button>
+        <!-- Mode & Font Controls -->
+        <div class="control-card">
+          <div class="control-card-label">Mode</div>
+          <div class="pill-group mode-group" id="modeGroup" role="group" aria-label="Test mode">
+            <button class="pill active" data-mode="30s">30s</button>
+            <button class="pill" data-mode="1m">1m</button>
+            <button class="pill" data-mode="5m">5m</button>
+            <button class="pill" data-mode="wordCount">Words</button>
+            <button class="pill" data-mode="custom">Custom</button>
+          </div>
         </div>
-      </div>
 
-      <!-- Custom text inline -->
-      <div class="custom-area" id="customArea" style="display:none;">
-        <textarea class="custom-textarea" id="customTextarea"
-          placeholder="Paste or type your custom text here…"
-          rows="3" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
-        <button class="btn btn-primary btn-sm" id="customConfirm">
-          <i class="fa-solid fa-check"></i> Use Text
-        </button>
-      </div>
-    </div>
-
-    <!-- Calibration Engine Status Bar -->
-    <div class="engine-bar" id="engineBar" style="display:none;">
-      <i class="fa-solid fa-brain engine-bar-icon"></i>
-      <span id="engineBarText">Calibration Engine learning…</span>
-      <div class="engine-bar-tags" id="engineBarTags"></div>
-    </div>
-
-    <!-- Typing Stage -->
-    <main class="stage" id="stage">
-      <div class="stage-inner">
-        <div class="text-display" id="textDisplay" aria-live="polite">
-          <span class="word placeholder-word">Press Start</span>
+        <div class="control-card">
+          <div class="control-card-label">Font Size</div>
+          <div class="pill-group font-group" role="group" aria-label="Font size">
+            <button class="pill font-pill" data-size="small" title="Small">A</button>
+            <button class="pill font-pill active" data-size="medium" title="Medium">A</button>
+            <button class="pill font-pill" data-size="large" title="Large">A</button>
+          </div>
         </div>
-        <div class="input-mask" id="inputMask">
-          <input type="text" class="ghost-input" id="ghostInput"
-            autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
-            aria-label="Type the words shown above">
+
+        <!-- Sub-controls -->
+        <div class="sub-controls" id="subControls">
+          <div class="wc-picker" id="wcPicker" style="display:none;">
+            <span class="sub-label">Words:</span>
+            <div class="pill-group">
+              <button class="pill wc-pill" data-count="10">10</button>
+              <button class="pill wc-pill active" data-count="25">25</button>
+              <button class="pill wc-pill" data-count="50">50</button>
+              <button class="pill wc-pill" data-count="100">100</button>
+            </div>
+          </div>
+          <div class="custom-area" id="customArea" style="display:none;">
+            <textarea class="custom-textarea" id="customTextarea"
+              placeholder="Paste or type your custom text here…"
+              rows="4" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+            <button class="btn btn-primary btn-sm" id="customConfirm">
+              <i class="fa-solid fa-check"></i> Use Text
+            </button>
+          </div>
         </div>
-        <div class="caret" id="caret" aria-hidden="true"></div>
-        <div class="ghost-marker" id="ghostMarker" aria-hidden="true"></div>
-      </div>
-    </main>
 
-    <!-- Live Sparkline -->
-    <div class="sparkline-bar" id="sparklineBar" style="display:none;">
-      <span class="sparkline-label">WPM</span>
-      <canvas id="sparklineCanvas" height="36"></canvas>
-    </div>
+        <!-- Calibration Engine Status Bar -->
+        <div class="engine-bar" id="engineBar" style="display:none;">
+          <i class="fa-solid fa-brain engine-bar-icon"></i>
+          <div class="engine-bar-content">
+            <span id="engineBarText">Calibration Engine learning…</span>
+            <div class="engine-bar-tags" id="engineBarTags"></div>
+          </div>
+        </div>
 
-    <!-- Stats Bar -->
-    <div class="stats-row">
-      <div class="stat-tile" data-stat="wpm">
-        <span class="st-label">NET WPM</span>
-        <span class="st-value" id="wpmValue">0</span>
-      </div>
-      <div class="stat-tile" data-stat="raw">
-        <span class="st-label">RAW WPM</span>
-        <span class="st-value" id="rawWpmValue">0</span>
-      </div>
-      <div class="stat-tile" data-stat="acc">
-        <span class="st-label">ACCURACY</span>
-        <span class="st-value" id="accuracyValue">100%</span>
-      </div>
-      <div class="stat-tile" data-stat="err">
-        <span class="st-label">ERRORS</span>
-        <span class="st-value" id="errorsValue">0</span>
-      </div>
-      <div class="stat-tile" data-stat="time">
-        <span class="st-label">TIMER</span>
-        <span class="st-value" id="timerValue">0s</span>
-      </div>
-    </div>
+        <!-- Action Buttons -->
+        <div class="actions-col">
+          <button class="btn btn-primary btn-lg" id="startBtn" aria-label="Start test">
+            <i class="fa-solid fa-play"></i> Start
+          </button>
+          <button class="btn btn-warn btn-lg" id="pauseBtn" disabled aria-label="Pause test">
+            <i class="fa-solid fa-pause"></i> Pause
+          </button>
+          <button class="btn btn-ghost btn-lg" id="restartBtn" aria-label="Restart test">
+            <i class="fa-solid fa-rotate-right"></i> Restart
+          </button>
+        </div>
 
-    <!-- Action Buttons -->
-    <div class="actions-row">
-      <button class="btn btn-primary btn-lg" id="startBtn">
-        <i class="fa-solid fa-play"></i> Start
-      </button>
-      <button class="btn btn-warn btn-lg" id="pauseBtn" disabled>
-        <i class="fa-solid fa-pause"></i> Pause
-      </button>
-      <button class="btn btn-ghost btn-lg" id="restartBtn">
-        <i class="fa-solid fa-rotate-right"></i> Restart
-      </button>
-    </div>
+        <!-- Stats Panel (vertical on wide layouts) -->
+        <div class="stats-panel">
+          <div class="stat-tile" data-stat="wpm">
+            <span class="st-label">Net WPM</span>
+            <span class="st-value" id="wpmValue">0</span>
+          </div>
+          <div class="stat-tile" data-stat="raw">
+            <span class="st-label">Raw WPM</span>
+            <span class="st-value" id="rawWpmValue">0</span>
+          </div>
+          <div class="stat-tile" data-stat="acc">
+            <span class="st-label">Accuracy</span>
+            <span class="st-value" id="accuracyValue">100%</span>
+          </div>
+          <div class="stat-tile" data-stat="err">
+            <span class="st-label">Errors</span>
+            <span class="st-value" id="errorsValue">0</span>
+          </div>
+          <div class="stat-tile" data-stat="time">
+            <span class="st-label">Timer</span>
+            <span class="st-value" id="timerValue">0s</span>
+          </div>
+        </div>
+
+      </aside>
+
+      <!-- Right Column: Stage -->
+      <div class="stage-column">
+
+        <!-- Typing Stage -->
+        <main class="stage" id="stage" aria-label="Typing area">
+          <div class="stage-inner">
+            <div class="text-display" id="textDisplay" aria-live="polite">
+              <span class="word placeholder-word">Press Start or Enter</span>
+            </div>
+            <div class="input-mask" id="inputMask">
+              <input type="text" class="ghost-input" id="ghostInput"
+                autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                aria-label="Type the words shown above">
+            </div>
+            <div class="caret" id="caret" aria-hidden="true"></div>
+            <div class="ghost-marker" id="ghostMarker" aria-hidden="true"></div>
+          </div>
+        </main>
+
+        <!-- Live Sparkline -->
+        <div class="sparkline-bar" id="sparklineBar" style="display:none;">
+          <span class="sparkline-label">WPM</span>
+          <canvas id="sparklineCanvas" height="36"></canvas>
+        </div>
+
+      </div>
+    </div><!-- /main-layout -->
 
     <!-- Footer -->
     <footer class="app-footer">

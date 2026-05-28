@@ -1205,14 +1205,11 @@ function handleInput(e) {
     STATE.wordStartTime = Date.now();
     D.ghostInput.value = '';
 
-    if (STATE.mode === 'wordCount' && STATE.currentWordIndex >= STATE.targetWords.length) {
-      finishTest(); return;
-    }
-    if (STATE.mode === 'custom' && STATE.currentWordIndex >= STATE.targetWords.length) {
-      finishTest(); return;
-    }
-    if (STATE.mode === 'bank' && STATE.currentWordIndex >= STATE.targetWords.length) {
-      finishTest(); return;
+    if (STATE.currentWordIndex >= STATE.targetWords.length) {
+      if (STATE.mode === 'wordCount' || STATE.mode === 'custom' || STATE.mode === 'bank' ||
+          STATE.category === 'bank' || STATE.category === 'custom') {
+        finishTest(); return;
+      }
     }
 
     highlightCurrentWord();
@@ -1284,7 +1281,7 @@ function updateStats() {
   STATE.wpm = net;
 
   if (['30s','1m','5m'].includes(STATE.mode)) {
-    const elapsed = Math.floor((now - STATE.startTime) / 1000);
+    const elapsed = Math.floor((now - STATE.startTime + STATE.elapsedPaused) / 1000);
     const remaining = Math.max(0, STATE.totalTime - elapsed);
     D.timerValue.textContent = `${remaining}s`;
     if (remaining <= 0 && STATE.status === 'running') { finishTest(); return; }
@@ -1474,7 +1471,8 @@ function startTest() {
     case 'bank':
       if (!STATE.customText) {
         if (mode === 'bank') { openPanel('bank'); return; }
-        openPanel(null); // fallback
+        D.customArea.style.display = 'flex';
+        D.customTextarea.focus();
         return;
       }
       count = 200; break;
@@ -1566,7 +1564,7 @@ function resetState() {
   D.pauseBtn.disabled = true;
   D.pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Pause';
 
-  D.textDisplay.innerHTML = '<span class="word placeholder-word">Press Start</span>';
+  D.textDisplay.innerHTML = '<span class="word placeholder-word">Press Start or Enter</span>';
   D.wpmValue.textContent = '0';
   D.rawWpmValue.textContent = '0';
   D.accuracyValue.textContent = '100%';
@@ -1720,7 +1718,8 @@ function setFontSize(level) {
 function setTheme(theme) {
   STATE.theme = theme;
   document.documentElement.setAttribute('data-theme', theme);
-  document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#080810' : '#f0f0f8';
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) metaTheme.content = theme === 'dark' ? '#06060f' : '#f2f2fa';
   Store.saveSettings();
 }
 
@@ -2056,7 +2055,7 @@ function init() {
   attach();
   resetState();
 
-  console.log('%cTypeRush v3 initialized', 'color:#7c6aff;font-weight:bold;font-size:14px');
+  console.log('%cTypeRush Pro initialized', 'color:#7c6aff;font-weight:bold;font-size:14px');
   console.log('Calibration active:', STATE.calibration.active, '| Best WPM:', STATE.bestWPM);
 }
 
